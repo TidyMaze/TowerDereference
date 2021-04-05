@@ -212,6 +212,9 @@ while (true) {
 
     let coveredMap = makeCoveredMap(playerId, towers)
 
+    console.error('covered map:')
+    console.error(showMap(coveredMap))
+
     let walkableByDistanceToCenter =
         allCoords
             .filter(
