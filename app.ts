@@ -10,6 +10,38 @@ class Coord {
     }
 }
 
+class Tower {
+    towerType: string
+    towerId: number
+    owner: number
+    x: number
+    y: number
+    damage: number
+    range: number
+    reload: number
+    coolDown: number
+
+    constructor(towerType: string,
+        towerId: number,
+        owner: number,
+        x: number,
+        y: number,
+        damage: number,
+        range: number,
+        reload: number,
+        coolDown: number) {
+        this.towerType = towerType
+        this.towerId = towerId
+        this.owner = owner
+        this.x = x
+        this.y = y
+        this.damage = damage
+        this.range = range
+        this.reload = reload
+        this.coolDown = coolDown
+    }
+}
+
 const playerId: number = parseInt(readline());
 var inputs: string[] = readline().split(' ');
 const width: number = parseInt(inputs[0]);
@@ -39,15 +71,15 @@ function distance(from: Coord, to: Coord) {
     return Math.sqrt((to.x - from.x) ** 2 + (to.y - from.y) ** 2)
 }
 
-function byClosestWalkableOrDistance(mapWalkable: boolean[][], to: Coord): (a: Coord, b: Coord) => number {
+function byClosestWalkableOrDistance(mapWalkable: boolean[][], coveredMap: boolean[][], to: Coord): (a: Coord, b: Coord) => number {
     return function (a: Coord, b: Coord): number {
-        let da = closestWalkableDistance(mapWalkable, a)
-        let db = closestWalkableDistance(mapWalkable, b)
+        let da = coveredWalkable(mapWalkable, coveredMap, a)
+        let db = coveredWalkable(mapWalkable, coveredMap, b)
 
-        if(da == db){
+        if (da == db) {
             return distance(a, to) - distance(b, to)
         } else {
-            return da - db
+            return db - da
         }
     }
 }
@@ -70,16 +102,16 @@ function and<T>(f1: (_: T) => boolean, f2: (_: T) => boolean): (_: T) => boolean
     }
 }
 
-function availableTower(towers: Coord[]): (c: Coord) => boolean {
+function availableTower(towers: Tower[]): (c: Coord) => boolean {
     return function (c: Coord) {
-        return !towers.some(c2 => c2.x == c.x && c2.y == c.y)
+        return !towers.some(t => t.x == c.x && t.y == c.y)
     }
 }
 
 function closestWalkableDistance(mapWalkable: boolean[][], c: Coord): number {
     let allCoords: Coord[] = []
-    for (let i = 0; i < mapWalkable.length; i++) {
-        for (let j = 0; j < mapWalkable[0].length; j++) {
+    for (let i = 0; i < height; i++) {
+        for (let j = 0; j < width; j++) {
             allCoords.push(new Coord(j, i))
         }
     }
@@ -91,9 +123,48 @@ function closestWalkableDistance(mapWalkable: boolean[][], c: Coord): number {
     return Math.min(...distances)
 }
 
+function makeCoveredMap(playerId: number, towers: Tower[]){
+    let map: boolean[][] = []
+    for (let i = 0; i < height; i++) {
+        let row = []
+        for (let j = 0; j < width; j++) {
+            row.push(false)
+        }
+        map.push(row)
+    }
+
+    towers.forEach(t => {
+        if(t.owner == playerId){
+            for (let i = 0; i < height; i++) {
+                for (let j = 0; j < width; j++) {
+                    if(distance(new Coord(t.x, t.y), new Coord(j, i)) <= 3){
+                        map[i][j] = true
+                    }
+                }
+            }
+        }
+    })
+
+    return map
+}
+
+function coveredWalkable(mapWalkable: boolean[][], coveredMap: boolean[][], c: Coord): number {
+    let covered: Coord[] = []
+    for (let i = 0; i < height; i++) {
+        for (let j = 0; j < width; j++) {
+            let dest = new Coord(j, i)
+            if (isWalkable(mapWalkable)(dest) && distance(c, dest) <= 3 && !coveredMap[i][j]) {
+                covered.push(dest)
+            }
+        }
+    }
+
+    return covered.length
+}
+
 let allCoords: Coord[] = []
-for (let i = 0; i < mapWalkable.length; i++) {
-    for (let j = 0; j < mapWalkable[0].length; j++) {
+for (let i = 0; i < height; i++) {
+    for (let j = 0; j < width; j++) {
         allCoords.push(new Coord(j, i))
     }
 }
@@ -107,7 +178,7 @@ while (true) {
     const opponentLives: number = parseInt(inputs[1]);
     const towerCount: number = parseInt(readline());
 
-    let towers: Coord[] = []
+    let towers: Tower[] = []
 
     for (let i = 0; i < towerCount; i++) {
         var inputs: string[] = readline().split(' ');
@@ -117,11 +188,10 @@ while (true) {
         const x: number = parseInt(inputs[3]);
         const y: number = parseInt(inputs[4]);
         const damage: number = parseInt(inputs[5]);
-        const attackRange: number = parseFloat(inputs[6]);
+        const range: number = parseFloat(inputs[6]);
         const reload: number = parseInt(inputs[7]);
         const coolDown: number = parseInt(inputs[8]);
-
-        towers.push(new Coord(x, y))
+        towers.push(new Tower(towerType, towerId, owner, x, y, damage, range, reload, coolDown))
     }
 
 
@@ -140,6 +210,8 @@ while (true) {
         const bounty: number = parseInt(inputs[9]);
     }
 
+    let coveredMap = makeCoveredMap(playerId, towers)
+
     let walkableByDistanceToCenter =
         allCoords
             .filter(
@@ -148,7 +220,7 @@ while (true) {
                     availableTower(towers)
                 )
             )
-            .sort(byClosestWalkableOrDistance(mapWalkable, center))
+            .sort(byClosestWalkableOrDistance(mapWalkable, coveredMap, center))
 
     console.error(walkableByDistanceToCenter)
 
